@@ -16,8 +16,7 @@ from langchain_anthropic import ChatAnthropic
 from .config import settings
 from .contracts import Implementation, QaVerdict, SolutionSpec, TestSuite
 from .routing import GraphState
-from .sandbox import Sandbox, get_sandbox, grade
-from .sandbox import _trim as trim
+from .sandbox import Sandbox, get_sandbox, grade, trim
 
 SYSTEM_BA = (
     "You are the Business Analyst. You elicit and formalize requirements. You NEVER write "
