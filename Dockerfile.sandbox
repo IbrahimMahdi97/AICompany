@@ -1,0 +1,9 @@
+# The sandbox image used by DockerSandbox to run model-written tests.
+# pytest must be baked in because the container runs with --network none.
+#
+#   docker build -f Dockerfile.sandbox -t agent-sandbox:py312 .
+FROM python:3.12-slim
+RUN pip install --no-cache-dir pytest
+RUN useradd -m -u 1000 sandbox
+USER 1000
+WORKDIR /work
