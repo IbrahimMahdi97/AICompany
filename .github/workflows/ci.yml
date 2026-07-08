@@ -17,8 +17,8 @@ jobs:
 
       - name: Install dev tooling
         # The unit tests exercise the deterministic core (grading + routing) and need
-        # only pydantic, so we avoid installing the heavy LLM stack in CI.
-        run: pip install pydantic pytest ruff mypy
+        # only the lightweight deps, so we avoid installing the heavy LLM stack in CI.
+        run: pip install pydantic pydantic-settings defusedxml pytest ruff mypy
 
       - name: Lint
         run: ruff check .

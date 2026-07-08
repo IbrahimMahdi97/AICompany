@@ -11,10 +11,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
+
+# report.xml is produced by model-written tests running in the sandbox, so it is
+# untrusted input. defusedxml rejects entity-expansion ("billion laughs") and external
+# entity attacks that the stdlib parser would happily process.
+from defusedxml.ElementTree import fromstring as xml_fromstring
 
 from .config import settings
 from .contracts import AcceptanceCriterion, CriterionResult
@@ -31,14 +35,28 @@ class ExecResult:
     artifacts: dict[str, str] = field(default_factory=dict)
 
 
+def _safe_join(root: Path, rel: str) -> Path:
+    """Resolve ``rel`` under ``root``, rejecting absolute paths and ``..`` traversal.
+
+    ``rel`` comes from model-generated CodeFile.path and is untrusted. This runs on the
+    HOST (before any container mount), so an absolute path or ``../`` would otherwise let
+    model output write anywhere on the host filesystem.
+    """
+    target = (root / rel).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise ValueError(f"unsafe file path escapes sandbox root: {rel!r}")
+    return target
+
+
 def _write_files(root: str, files: dict[str, str]) -> None:
+    root_path = Path(root)
     for rel, content in files.items():
-        p = Path(root) / rel
+        p = _safe_join(root_path, rel)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
+        p.write_text(content, encoding="utf-8")
 
 
-def _trim(s: str, n: int = 800) -> str:
+def trim(s: str, n: int = 800) -> str:
     s = s or ""
     return s if len(s) <= n else s[:n] + f"\n...[truncated {len(s) - n} chars]"
 
@@ -71,7 +89,7 @@ class LocalSubprocessSandbox:
                 out = _as_text(e.stdout)
                 err = _as_text(e.stderr) + f"\nTIMEOUT after {timeout}s"
             report = Path(d) / "report.xml"
-            xml = report.read_text() if report.exists() else ""
+            xml = report.read_text(encoding="utf-8") if report.exists() else ""
         return ExecResult(rc, out, err, {"report.xml": xml})
 
 
@@ -104,7 +122,7 @@ class DockerSandbox:
             except subprocess.TimeoutExpired:
                 rc, out, err = 124, "", f"TIMEOUT after {timeout}s (container killed)"
             report = Path(d) / "report.xml"
-            xml = report.read_text() if report.exists() else ""
+            xml = report.read_text(encoding="utf-8") if report.exists() else ""
         return ExecResult(rc, out, err, {"report.xml": xml})
 
 
@@ -129,18 +147,18 @@ def grade(
     defects: list[str] = []
     xml = res.artifacts.get("report.xml", "")
     if not xml:
-        defects.append("Test run produced no results:\n" + _trim(res.stdout + "\n" + res.stderr))
+        defects.append("Test run produced no results:\n" + trim(res.stdout + "\n" + res.stderr))
         return [CriterionResult(id=c.id, passed=False, note="no test results") for c in criteria], defects
 
     cases: list[tuple[str, bool, str]] = []  # (name, passed, message)
-    for tc in ET.fromstring(xml).iter("testcase"):
+    for tc in xml_fromstring(xml).iter("testcase"):
         name = tc.get("name", "")
         bad = tc.find("failure")
         if bad is None:
             bad = tc.find("error")
         if bad is not None:
             msg = (bad.get("message", "") or "") + "\n" + (bad.text or "")
-            cases.append((name, False, _trim(msg, 400)))
+            cases.append((name, False, trim(msg, 400)))
         else:
             cases.append((name, True, ""))
 
@@ -165,6 +183,6 @@ def grade(
     if res.returncode == 124:
         defects.append("Test run timed out -- likely an infinite loop in the implementation.")
     elif res.returncode not in (0, 1):
-        defects.append("pytest collection/setup error:\n" + _trim(res.stdout + "\n" + res.stderr))
+        defects.append("pytest collection/setup error:\n" + trim(res.stdout + "\n" + res.stderr))
 
     return results, defects
