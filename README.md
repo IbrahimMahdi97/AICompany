@@ -114,20 +114,6 @@ so CI stays green without secrets. See `.github/workflows/ci.yml`.
 - Swap `InMemorySaver` for `SqliteSaver`/`PostgresSaver` so a failed run can resume.
 - Add a contract-check node that fails fast if `solution.py` and the tests disagree on the API.
 
-## Push to GitHub
-
-Create an **empty** repo on GitHub first (no README/license), then:
-
-```powershell
-cd E:\AI\orchestraiton
-git init
-git add .
-git commit -m "Initial commit: BA/Developer/QA agent orchestration"
-git branch -M main
-git remote add origin https://github.com/<you>/<repo>.git
-git push -u origin main
-```
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
