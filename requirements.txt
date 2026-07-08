@@ -1,7 +1,7 @@
 # Runtime dependencies (loose bounds). After your first successful install, pin exact
 # versions for reproducible builds:   pip freeze > requirements.lock
 langgraph>=1.0,<2.0
-langchain-anthropic>=0.3
+langchain-anthropic>=1.4
 pydantic>=2.7
 pydantic-settings>=2.2
 python-dotenv>=1.0
