@@ -41,19 +41,28 @@ SYSTEM_DEV = (
 )
 
 
+# method="json_schema" uses Anthropic's native structured outputs (constrained decoding).
+# The default tool-calling path intermittently makes newer models emit their arguments as
+# XML text (<parameter name=...>) that fails schema validation, so we pin json_schema here.
 @lru_cache(maxsize=1)
 def _ba():
-    return ChatAnthropic(model=settings.model_ba, max_tokens=4096).with_structured_output(SolutionSpec)
+    return ChatAnthropic(model=settings.model_ba, max_tokens=4096).with_structured_output(
+        SolutionSpec, method="json_schema"
+    )
 
 
 @lru_cache(maxsize=1)
 def _test_author():
-    return ChatAnthropic(model=settings.model_test, max_tokens=8192).with_structured_output(TestSuite)
+    return ChatAnthropic(model=settings.model_test, max_tokens=8192).with_structured_output(
+        TestSuite, method="json_schema"
+    )
 
 
 @lru_cache(maxsize=1)
 def _developer():
-    return ChatAnthropic(model=settings.model_dev, max_tokens=8192).with_structured_output(Implementation)
+    return ChatAnthropic(model=settings.model_dev, max_tokens=8192).with_structured_output(
+        Implementation, method="json_schema"
+    )
 
 
 @lru_cache(maxsize=1)
