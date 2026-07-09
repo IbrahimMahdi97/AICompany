@@ -5,11 +5,28 @@ orchestrator. None of them call an LLM.
 """
 
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from .agents import business_analyst, developer, qa, test_author
+from .contracts import AcceptanceCriterion, CodeFile, CriterionResult, QaVerdict, SolutionSpec
 from .routing import GraphState, route_after_ba, route_after_qa
+
+# The graph state carries these Pydantic models, so they get written into the checkpoint.
+# Registering them tells LangGraph 1.2+'s msgpack deserializer they are known, expected
+# types instead of emitting an "unregistered type" warning (and being blocked in a future
+# release). An explicit allowlist also tightens security: only these custom types — plus
+# LangGraph's own safe built-ins — may be revived from a checkpoint.
+_CHECKPOINT_SERDE = JsonPlusSerializer(
+    allowed_msgpack_modules=[
+        SolutionSpec,
+        AcceptanceCriterion,
+        CodeFile,
+        QaVerdict,
+        CriterionResult,
+    ]
+)
 
 
 def clarify(state: GraphState) -> dict:
@@ -39,4 +56,4 @@ def build_graph():
     b.add_conditional_edges("qa", route_after_qa, {"developer": "developer", "deliver": END})
 
     # A checkpointer is REQUIRED for interrupt()/resume.
-    return b.compile(checkpointer=InMemorySaver())
+    return b.compile(checkpointer=InMemorySaver(serde=_CHECKPOINT_SERDE))

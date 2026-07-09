@@ -41,32 +41,40 @@ SYSTEM_DEV = (
 )
 
 
-def _structured(model: str, schema: type, max_tokens: int):
+def _structured(model: str, schema: type, max_tokens: int, *, streaming: bool = False):
     """Build a ChatAnthropic bound to a Pydantic output schema.
 
     method="json_schema" uses Anthropic's native structured outputs (constrained decoding).
     The default tool-calling path intermittently makes newer models emit their arguments as
     XML text (<parameter name=...>) that fails schema validation, so we pin json_schema in
     this one place for every agent.
+
+    streaming=True is required whenever max_tokens is large: a big non-streaming request
+    trips the SDK's ~10-minute HTTP-timeout guard. Code/test generation can be long, so if
+    max_tokens is too small the model is cut off mid-file and the last schema field never
+    arrives -- structured-output parsing then fails with a "field required" error.
     """
-    return ChatAnthropic(model=model, max_tokens=max_tokens).with_structured_output(
-        schema, method="json_schema"
-    )
+    return ChatAnthropic(
+        model=model, max_tokens=max_tokens, streaming=streaming
+    ).with_structured_output(schema, method="json_schema")
 
 
 @lru_cache(maxsize=1)
 def _ba():
-    return _structured(settings.model_ba, SolutionSpec, 4096)
+    # Specs are short; a modest non-streaming budget is plenty.
+    return _structured(settings.model_ba, SolutionSpec, 8192)
 
 
 @lru_cache(maxsize=1)
 def _test_author():
-    return _structured(settings.model_test, TestSuite, 8192)
+    # A full pytest suite in one file can be long -- stream so the budget can be large.
+    return _structured(settings.model_test, TestSuite, 32000, streaming=True)
 
 
 @lru_cache(maxsize=1)
 def _developer():
-    return _structured(settings.model_dev, Implementation, 8192)
+    # The implementation can be long, and it is rewritten every QA round -- same treatment.
+    return _structured(settings.model_dev, Implementation, 32000, streaming=True)
 
 
 @lru_cache(maxsize=1)

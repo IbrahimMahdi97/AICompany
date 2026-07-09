@@ -67,6 +67,30 @@ def _as_text(v: bytes | str | None) -> str:
     return v if isinstance(v, str) else v.decode(errors="replace")
 
 
+# Substrings that mark an env var as a secret we should not hand to model-written code.
+_SECRET_ENV_HINTS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL")
+
+
+def _sandbox_env() -> dict[str, str]:
+    """Environment for the local pytest subprocess.
+
+    Inherit the real OS environment minus obvious secrets. Inheriting matters on Windows:
+    a hand-built minimal env drops ``SystemRoot``, and without it ``import asyncio`` (via
+    Winsock/_overlapped) dies with ``WinError 10106`` before any test runs. This sandbox is
+    explicitly NOT an isolation boundary, so dropping secrets is hygiene, not security.
+    """
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not any(hint in k.upper() for hint in _SECRET_ENV_HINTS)
+    }
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # Don't load unrelated third-party pytest plugins (e.g. anyio's) into the model's run;
+    # the tests are stdlib + pytest only, and a plugin's import-time hook can crash startup.
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    return env
+
+
 class Sandbox(Protocol):
     def run_pytest(self, files: dict[str, str], timeout: int = 60) -> ExecResult: ...
 
@@ -78,7 +102,7 @@ class LocalSubprocessSandbox:
         with tempfile.TemporaryDirectory() as d:
             _write_files(d, files)
             cmd = [sys.executable, "-m", "pytest", *_PYTEST_ARGS]
-            env = {"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"}
+            env = _sandbox_env()
             try:
                 p = subprocess.run(
                     cmd, cwd=d, capture_output=True, text=True, timeout=timeout, env=env
@@ -112,6 +136,7 @@ class DockerSandbox:
                 "--network", "none",
                 "--memory", "512m", "--pids-limit", "256", "--cpus", "1",
                 "--user", "1000:1000",
+                "-e", "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
                 "-v", f"{d}:/work", "-w", "/work",
                 self.image,
                 "python", "-m", "pytest", *_PYTEST_ARGS,
