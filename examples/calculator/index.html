@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Calculator</title>
+<style>
+  :root {
+    --bg-1: #0b1220; --bg-2: #131c31;
+    --panel: rgba(255,255,255,.05); --panel-border: rgba(255,255,255,.09);
+    --display: #f8fafc; --expr: #94a3b8;
+    --digit: #1e293b; --digit-hov: #26344c; --digit-text: #e2e8f0;
+    --fn: #334155; --fn-hov: #3f4f68; --fn-text: #cbd5e1;
+    --op: #1f3b3a; --op-hov: #245150; --op-text: #5eead4;
+    --accent: #f59e0b; --accent-hov: #fbbf24; --accent-text: #1a1206;
+    --shadow: 0 30px 60px -20px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="auto"] {
+      --bg-1: #eef2f7; --bg-2: #dde5ef;
+      --panel: #ffffff; --panel-border: rgba(15,23,42,.08);
+      --display: #0f172a; --expr: #64748b;
+      --digit: #ffffff; --digit-hov: #f1f5f9; --digit-text: #0f172a;
+      --fn: #e9eef5; --fn-hov: #dde5ef; --fn-text: #334155;
+      --op: #d7f5f0; --op-hov: #c3efe8; --op-text: #0f766e;
+      --accent: #f59e0b; --accent-hov: #f9b429; --accent-text: #1a1206;
+      --shadow: 0 24px 50px -24px rgba(15,23,42,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg-1: #eef2f7; --bg-2: #dde5ef;
+    --panel: #ffffff; --panel-border: rgba(15,23,42,.08);
+    --display: #0f172a; --expr: #64748b;
+    --digit: #ffffff; --digit-hov: #f1f5f9; --digit-text: #0f172a;
+    --fn: #e9eef5; --fn-hov: #dde5ef; --fn-text: #334155;
+    --op: #d7f5f0; --op-hov: #c3efe8; --op-text: #0f766e;
+    --accent: #f59e0b; --accent-hov: #f9b429; --accent-text: #1a1206;
+    --shadow: 0 24px 50px -24px rgba(15,23,42,.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(120% 120% at 50% 0%, var(--bg-2), var(--bg-1));
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; color: var(--display);
+  }
+  .calc {
+    width: 100%; max-width: 360px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 26px; padding: 18px; box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+  }
+  .topbar { display: flex; justify-content: space-between; align-items: center;
+    padding: 2px 6px 10px; }
+  .brand { font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--expr); font-weight: 600; }
+  .theme-btn { border: none; background: transparent; cursor: pointer;
+    font-size: 18px; color: var(--expr); padding: 4px 6px; border-radius: 8px; line-height: 1; }
+  .theme-btn:hover { background: var(--panel-border); }
+
+  .screen {
+    text-align: right; padding: 14px 12px 18px; min-height: 104px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+    overflow: hidden;
+  }
+  .expr { color: var(--expr); font-size: 17px; min-height: 22px;
+    white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .expr::-webkit-scrollbar { display: none; }
+  .result { color: var(--display); font-size: 44px; font-weight: 600;
+    line-height: 1.1; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .result::-webkit-scrollbar { display: none; }
+  .result.error { color: #f87171; font-size: 30px; }
+
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 6px; }
+  button.key {
+    border: none; cursor: pointer; border-radius: 16px;
+    font-size: 22px; font-weight: 500; height: 62px;
+    color: var(--digit-text); background: var(--digit);
+    transition: transform .05s ease, background .15s ease, filter .15s ease;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  button.key:hover { background: var(--digit-hov); }
+  button.key:active { transform: scale(.95); }
+  button.fn  { background: var(--fn);  color: var(--fn-text); font-size: 19px; }
+  button.fn:hover  { background: var(--fn-hov); }
+  button.op  { background: var(--op);  color: var(--op-text); font-weight: 600; }
+  button.op:hover  { background: var(--op-hov); }
+  button.op.active { filter: brightness(1.25); outline: 2px solid var(--op-text); }
+  button.equals { background: var(--accent); color: var(--accent-text);
+    grid-column: span 3; font-weight: 700; }
+  button.equals:hover { background: var(--accent-hov); }
+</style>
+</head>
+<body>
+  <main class="calc" role="application" aria-label="Calculator">
+    <div class="topbar">
+      <span class="brand">Calc</span>
+      <button class="theme-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◑</button>
+    </div>
+    <div class="screen">
+      <div class="expr" id="expr" aria-hidden="true"></div>
+      <div class="result" id="result" aria-live="polite">0</div>
+    </div>
+    <div class="keys">
+      <button class="key fn" data-act="clear">AC</button>
+      <button class="key fn" data-act="del" aria-label="delete">⌫</button>
+      <button class="key fn" data-tok="(">(</button>
+      <button class="key fn" data-tok=")">)</button>
+
+      <button class="key" data-tok="7">7</button>
+      <button class="key" data-tok="8">8</button>
+      <button class="key" data-tok="9">9</button>
+      <button class="key op" data-tok="/" aria-label="divide">÷</button>
+
+      <button class="key" data-tok="4">4</button>
+      <button class="key" data-tok="5">5</button>
+      <button class="key" data-tok="6">6</button>
+      <button class="key op" data-tok="*" aria-label="multiply">×</button>
+
+      <button class="key" data-tok="1">1</button>
+      <button class="key" data-tok="2">2</button>
+      <button class="key" data-tok="3">3</button>
+      <button class="key op" data-tok="-" aria-label="subtract">−</button>
+
+      <button class="key fn" data-act="negate" aria-label="plus minus">±</button>
+      <button class="key" data-tok="0">0</button>
+      <button class="key" data-tok=".">.</button>
+      <button class="key op" data-tok="+" aria-label="add">+</button>
+
+      <button class="key fn" data-act="percent">%</button>
+      <button class="key equals" data-act="equals" aria-label="equals">=</button>
+    </div>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+  const exprEl = document.getElementById("expr");
+  const resultEl = document.getElementById("result");
+  let expr = "";      // canonical expression using + - * / ( )
+  let justEvaluated = false;
+
+  const pretty = s => s.replace(/\*/g, "×").replace(/\//g, "÷").replace(/-/g, "−");
+
+  // --- safe expression evaluator (tokenize -> shunting-yard RPN -> evaluate) ---
+  function tokenize(s) {
+    const tokens = [];
+    const re = /\s*([0-9]*\.?[0-9]+|[()+\-*/])/y;
+    let i = 0;
+    while (i < s.length) {
+      re.lastIndex = i;
+      const m = re.exec(s);
+      if (!m || m.index !== i) {
+        if (/^\s+$/.test(s.slice(i))) break;   // trailing whitespace is fine
+        throw new Error("syntax");
+      }
+      tokens.push(m[1]);
+      i = re.lastIndex;
+    }
+    return tokens;
+  }
+  function toRPN(tokens) {
+    const out = [], ops = [];
+    const prec = { "u-": 4, "*": 3, "/": 3, "+": 2, "-": 2 };
+    let expectOperand = true;
+    for (const t of tokens) {
+      if (/^[0-9.]/.test(t)) {
+        const n = Number(t);
+        if (!isFinite(n)) throw new Error("number");
+        out.push(n); expectOperand = false;
+      } else if (t === "(") {
+        ops.push(t); expectOperand = true;
+      } else if (t === ")") {
+        while (ops.length && ops[ops.length - 1] !== "(") out.push(ops.pop());
+        if (!ops.length) throw new Error("paren");
+        ops.pop(); expectOperand = false;
+      } else {
+        let op = t;
+        if (expectOperand && (t === "+" || t === "-")) {
+          if (t === "+") continue;      // leading unary plus is a no-op
+          op = "u-";                    // unary minus
+        }
+        while (ops.length) {
+          const top = ops[ops.length - 1];
+          if (top === "(") break;
+          if (prec[top] > prec[op] || (prec[top] === prec[op] && op !== "u-")) out.push(ops.pop());
+          else break;
+        }
+        ops.push(op); expectOperand = true;
+      }
+    }
+    while (ops.length) {
+      const op = ops.pop();
+      if (op === "(") throw new Error("paren");
+      out.push(op);
+    }
+    return out;
+  }
+  function evalRPN(rpn) {
+    const st = [];
+    for (const t of rpn) {
+      if (typeof t === "number") { st.push(t); continue; }
+      if (t === "u-") { if (!st.length) throw new Error("operand"); st.push(-st.pop()); continue; }
+      if (st.length < 2) throw new Error("operand");
+      const b = st.pop(), a = st.pop();
+      let r;
+      if (t === "+") r = a + b;
+      else if (t === "-") r = a - b;
+      else if (t === "*") r = a * b;
+      else { if (b === 0) throw new Error("Cannot divide by zero"); r = a / b; }
+      st.push(r);
+    }
+    if (st.length !== 1) throw new Error("operand");
+    return st[0];
+  }
+  function compute(s) {
+    const v = evalRPN(toRPN(tokenize(s)));
+    if (!isFinite(v)) throw new Error("Cannot divide by zero");
+    return v;
+  }
+  function fmt(v) {
+    if (Object.is(v, -0)) v = 0;
+    if (Number.isInteger(v)) return String(v);
+    // round away floating-point noise (0.1 + 0.2 -> 0.3), then trim trailing zeros
+    return parseFloat(v.toPrecision(12)).toString();
+  }
+
+  // --- rendering ---
+  function render() {
+    exprEl.textContent = pretty(expr);
+    resultEl.classList.remove("error");
+    if (expr === "") { resultEl.textContent = "0"; return; }
+    try {
+      resultEl.textContent = fmt(compute(expr));
+    } catch (e) {
+      // while typing, an incomplete expression isn't an error — show the raw input
+      resultEl.textContent = pretty(expr);
+    }
+  }
+
+  // --- actions ---
+  function appendToken(tok) {
+    if (justEvaluated) {
+      // continue from result if an operator is pressed; start fresh on a digit/paren
+      if (/[0-9.(]/.test(tok)) expr = "";
+      justEvaluated = false;
+    }
+    if (tok === "." ) {
+      // avoid a second dot in the current number
+      const tail = expr.split(/[+\-*/()]/).pop();
+      if (tail.includes(".")) return;
+      if (tail === "") tok = "0.";
+    }
+    expr += tok;
+    render();
+  }
+  function clearAll() { expr = ""; justEvaluated = false; render(); }
+  function del() { justEvaluated = false; expr = expr.slice(0, -1); render(); }
+  function equals() {
+    try {
+      const v = fmt(compute(expr));
+      exprEl.textContent = pretty(expr) + " =";
+      resultEl.textContent = v;
+      resultEl.classList.remove("error");
+      expr = v; justEvaluated = true;
+    } catch (e) {
+      resultEl.textContent = e.message === "Cannot divide by zero" ? e.message : "Error";
+      resultEl.classList.add("error");
+    }
+  }
+  function unary(fn) {
+    try {
+      const v = compute(expr === "" ? "0" : expr);
+      expr = fmt(fn(v)); justEvaluated = false; render();
+    } catch (e) { /* ignore on invalid input */ }
+  }
+
+  document.querySelector(".keys").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.tok !== undefined) return appendToken(btn.dataset.tok);
+    switch (btn.dataset.act) {
+      case "clear":   return clearAll();
+      case "del":     return del();
+      case "equals":  return equals();
+      case "percent": return unary(v => v / 100);
+      case "negate":  return unary(v => -v);
+    }
+  });
+
+  // --- keyboard ---
+  window.addEventListener("keydown", (e) => {
+    const k = e.key;
+    if (/[0-9]/.test(k) || "+-*/().".includes(k)) { appendToken(k); e.preventDefault(); }
+    else if (k === "Enter" || k === "=") { equals(); e.preventDefault(); }
+    else if (k === "Backspace") { del(); e.preventDefault(); }
+    else if (k === "Escape" || k === "c" || k === "C") { clearAll(); e.preventDefault(); }
+    else if (k === "%") { unary(v => v / 100); e.preventDefault(); }
+  });
+
+  // --- theme toggle (persisted) ---
+  const root = document.documentElement;
+  const themeBtn = document.getElementById("theme");
+  const saved = localStorage.getItem("calc-theme");
+  if (saved) root.setAttribute("data-theme", saved);
+  themeBtn.addEventListener("click", () => {
+    const cur = root.getAttribute("data-theme");
+    const isDark = cur === "light" ? false
+      : cur === "auto" ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : true;
+    const next = isDark ? "light" : "dark";     // "dark" uses the default (dark) variables
+    root.setAttribute("data-theme", next === "dark" ? "auto" : "light");
+    localStorage.setItem("calc-theme", next === "dark" ? "auto" : "light");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 """Command-line entry point: `orchestrate` or `python -m orchestration.main`."""
 
 import argparse
+from pathlib import Path
 
 DEFAULT_GOAL = (
     "Build a pure-Python member profile service: update_profile(member_id, changes) records "
@@ -58,6 +59,30 @@ def _print_summary(result: dict) -> None:
     print(f"\nFinal code: {[f.path for f in result['impl_files']]}")
 
 
+def save_deliverables(result: dict, thread_id: str, out_root: str = "output") -> Path:
+    """Write the generated code (and its tests) to ``<out_root>/<thread_id>/`` so the run
+    leaves something on disk to actually open and run.
+
+    Without this the code only ever exists inside the QA sandbox's throwaway temp dir and
+    is discarded after grading -- the CLI would otherwise just print filenames. Paths come
+    from the model, so guard against escaping the output directory.
+    """
+    out_dir = (Path(out_root) / thread_id).resolve()
+    files = list(result.get("impl_files", [])) + list(result.get("test_files", []))
+    written: list[str] = []
+    for f in files:
+        target = (out_dir / f.path).resolve()
+        if not target.is_relative_to(out_dir):
+            raise ValueError(f"refusing to write outside the output dir: {f.path!r}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f.content, encoding="utf-8")
+        written.append(f.path)
+    print(f"\nSaved {len(written)} file(s) to {out_dir}")
+    for path in written:
+        print("  -", path)
+    return out_dir
+
+
 def cli() -> None:
     from dotenv import load_dotenv
 
@@ -66,7 +91,9 @@ def cli() -> None:
     parser.add_argument("--goal", default=DEFAULT_GOAL, help="The business goal to build.")
     parser.add_argument("--thread-id", default="run-1", help="Checkpoint thread id for this run.")
     args = parser.parse_args()
-    _print_summary(run(args.goal, args.thread_id))
+    result = run(args.goal, args.thread_id)
+    _print_summary(result)
+    save_deliverables(result, args.thread_id)
 
 
 if __name__ == "__main__":

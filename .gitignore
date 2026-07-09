@@ -23,6 +23,8 @@ requirements.lock
 # Test artifacts
 report.xml
 
+# Generated deliverables from orchestration runs
+output/
 # Editors / OS
 .idea/
 .vscode/
